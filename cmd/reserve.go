@@ -44,6 +44,13 @@ func runReserve(cmd *cobra.Command, args []string) error {
 	}
 	project := args[1]
 
+	if len(project) > 100 {
+		return fmt.Errorf("project name must not exceed 100 characters")
+	}
+	if reserveDesc != "" && len(reserveDesc) > 256 {
+		return fmt.Errorf("description must not exceed 256 characters")
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -90,7 +97,10 @@ func runReserveFromEnv(envPath string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	absPath, _ := filepath.Abs(envPath)
+	absPath, err := filepath.Abs(envPath)
+	if err != nil {
+		absPath = envPath
+	}
 	project := filepath.Base(filepath.Dir(absPath))
 
 	for _, p := range ports {

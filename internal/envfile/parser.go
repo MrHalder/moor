@@ -25,7 +25,10 @@ func Parse(path string) ([]EnvPort, error) {
 	}
 	defer f.Close()
 
-	absPath, _ := filepath.Abs(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
 
 	var ports []EnvPort
 	scanner := bufio.NewScanner(f)

@@ -11,7 +11,7 @@ import (
 
 func findFreePort(t *testing.T) uint16 {
 	t.Helper()
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("find free port: %v", err)
 	}
@@ -22,7 +22,7 @@ func findFreePort(t *testing.T) uint16 {
 
 func startEchoServer(t *testing.T, port uint16) {
 	t.Helper()
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		t.Fatalf("echo server listen: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestForwardBasic(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Connect to the forwarded port
-	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", fromPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", fromPort))
 	if err != nil {
 		t.Fatalf("connect to forwarded port: %v", err)
 	}
@@ -108,8 +108,8 @@ func TestForwardBasic(t *testing.T) {
 func TestForwardPortInUse(t *testing.T) {
 	port := findFreePort(t)
 
-	// Occupy the port
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	// Occupy the port on 127.0.0.1 (same address the forwarder binds)
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		t.Fatalf("occupy port: %v", err)
 	}

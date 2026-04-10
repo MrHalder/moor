@@ -49,6 +49,11 @@ var configEditCmd = &cobra.Command{
 			editor = "vi"
 		}
 
+		editorPath, err := exec.LookPath(editor)
+		if err != nil {
+			return fmt.Errorf("editor %q not found in PATH: %w", editor, err)
+		}
+
 		// Ensure config exists
 		cfg, err := config.Load()
 		if err != nil {
@@ -59,7 +64,7 @@ var configEditCmd = &cobra.Command{
 		}
 
 		path := config.ConfigPath()
-		c := exec.Command(editor, path)
+		c := exec.Command(editorPath, path)
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr

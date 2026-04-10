@@ -621,7 +621,7 @@ func (m Model) renderDetail() string {
 		{"PID", pidStr(p.PID)},
 		{"Process", p.ProcessName},
 		{"User", p.User},
-		{"Command", p.CommandLine},
+		{"Command", sanitizeDisplay(p.CommandLine)},
 	}
 
 	for _, d := range details {
@@ -781,6 +781,15 @@ func truncate(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func sanitizeDisplay(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 func pidStr(pid int32) string {

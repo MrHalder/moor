@@ -47,14 +47,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
-	// Apply defaults for missing settings
-	if cfg.Settings.RefreshIntervalSecs == 0 {
+	// Apply defaults and enforce bounds
+	if cfg.Settings.RefreshIntervalSecs < 1 || cfg.Settings.RefreshIntervalSecs > 3600 {
 		cfg.Settings.RefreshIntervalSecs = 2
 	}
-	if cfg.Settings.GracePeriodSecs == 0 {
+	if cfg.Settings.GracePeriodSecs < 1 || cfg.Settings.GracePeriodSecs > 300 {
 		cfg.Settings.GracePeriodSecs = 3
 	}
-	if cfg.Settings.DefaultOutput == "" {
+	switch cfg.Settings.DefaultOutput {
+	case "table", "json":
+		// valid
+	default:
 		cfg.Settings.DefaultOutput = "table"
 	}
 
@@ -64,7 +67,7 @@ func Load() (Config, error) {
 // Save writes the config to disk, creating the directory if needed.
 func Save(cfg Config) error {
 	dir := configDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("creating config dir %s: %w", dir, err)
 	}
 
@@ -74,7 +77,7 @@ func Save(cfg Config) error {
 	}
 
 	path := ConfigPath()
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing config %s: %w", path, err)
 	}
 

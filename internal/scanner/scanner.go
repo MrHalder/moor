@@ -89,6 +89,10 @@ func (s *GopsutilScanner) scan(ctx context.Context, stateFilter string) (*ScanRe
 			continue
 		}
 
+		if conn.Laddr.Port > 65535 || conn.Raddr.Port > 65535 {
+			continue
+		}
+
 		info := PortInfo{
 			Protocol:   protocolString(conn.Type),
 			LocalAddr:  conn.Laddr.IP,

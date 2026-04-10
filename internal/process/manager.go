@@ -46,6 +46,10 @@ func NewManager() *DefaultManager {
 }
 
 func (m *DefaultManager) Kill(ctx context.Context, pid int32, force bool) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid PID %d: must be positive", pid)
+	}
+
 	if !m.IsAlive(pid) {
 		return fmt.Errorf("process %d is not running", pid)
 	}
@@ -86,11 +90,18 @@ func (m *DefaultManager) Kill(ctx context.Context, pid int32, force bool) error 
 }
 
 func (m *DefaultManager) IsAlive(pid int32) bool {
+	if pid <= 0 {
+		return false
+	}
 	err := syscall.Kill(int(pid), 0)
 	return err == nil
 }
 
 func (m *DefaultManager) Info(pid int32) (*ProcessInfo, error) {
+	if pid <= 0 {
+		return nil, fmt.Errorf("invalid PID %d: must be positive", pid)
+	}
+
 	proc, err := process.NewProcess(pid)
 	if err != nil {
 		return nil, fmt.Errorf("process %d not found: %w", pid, err)

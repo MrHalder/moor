@@ -7,6 +7,13 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+const (
+	maxConcurrentConns = 256
+	dialTimeout        = 10 * time.Second
+	idleTimeout        = 5 * time.Minute
 )
 
 // Forwarder forwards TCP traffic from one local port to another.
@@ -18,6 +25,7 @@ type Forwarder struct {
 	totalConns  atomic.Int64
 	wg          sync.WaitGroup
 	cancel      context.CancelFunc
+	sem         chan struct{}
 }
 
 // Stats holds forwarding statistics.
@@ -33,6 +41,7 @@ func New(from, to uint16) *Forwarder {
 	return &Forwarder{
 		FromPort: from,
 		ToPort:   to,
+		sem:      make(chan struct{}, maxConcurrentConns),
 	}
 }
 
@@ -42,7 +51,7 @@ func (f *Forwarder) Start(ctx context.Context) error {
 	ctx, f.cancel = context.WithCancel(ctx)
 
 	var err error
-	f.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", f.FromPort))
+	f.listener, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", f.FromPort))
 	if err != nil {
 		return fmt.Errorf("listen on port %d: %w", f.FromPort, err)
 	}
@@ -66,11 +75,23 @@ func (f *Forwarder) Start(ctx context.Context) error {
 			}
 		}
 
+		// Enforce connection limit
+		select {
+		case f.sem <- struct{}{}:
+			// acquired slot
+		default:
+			conn.Close()
+			continue
+		}
+
 		f.wg.Add(1)
 		f.activeConns.Add(1)
 		f.totalConns.Add(1)
 
-		go f.handleConn(ctx, conn)
+		go func() {
+			defer func() { <-f.sem }()
+			f.handleConn(ctx, conn)
+		}()
 	}
 }
 
@@ -97,29 +118,47 @@ func (f *Forwarder) handleConn(ctx context.Context, src net.Conn) {
 	defer f.activeConns.Add(-1)
 	defer src.Close()
 
-	dst, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", f.ToPort))
+	dst, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", f.ToPort), dialTimeout)
 	if err != nil {
 		return
 	}
 	defer dst.Close()
 
-	done := make(chan struct{})
+	// Close both connections when context is cancelled so io.Copy unblocks
+	go func() {
+		<-ctx.Done()
+		src.Close()
+		dst.Close()
+	}()
+
+	done := make(chan struct{}, 2)
 
 	// src -> dst
 	go func() {
 		io.Copy(dst, src)
+		// Close write-half to signal the other direction
+		if tc, ok := dst.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
 		done <- struct{}{}
 	}()
 
 	// dst -> src
 	go func() {
 		io.Copy(src, dst)
+		if tc, ok := src.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
 		done <- struct{}{}
 	}()
 
-	// Wait for either direction to finish or context cancellation
+	// Wait for both directions to finish or context cancellation
 	select {
 	case <-done:
+		// First direction done; set idle timeout on remaining
+		src.SetDeadline(time.Now().Add(idleTimeout))
+		dst.SetDeadline(time.Now().Add(idleTimeout))
+		<-done
 	case <-ctx.Done():
 	}
 }
