@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -24,10 +23,7 @@ type PortScanner interface {
 }
 
 // GopsutilScanner implements PortScanner using gopsutil.
-type GopsutilScanner struct {
-	mu        sync.Mutex
-	procCache map[int32]*cachedProc
-}
+type GopsutilScanner struct{}
 
 type cachedProc struct {
 	name        string
@@ -37,9 +33,7 @@ type cachedProc struct {
 
 // NewScanner creates a new GopsutilScanner.
 func NewScanner() *GopsutilScanner {
-	return &GopsutilScanner{
-		procCache: make(map[int32]*cachedProc),
-	}
+	return &GopsutilScanner{}
 }
 
 func (s *GopsutilScanner) ListAll(ctx context.Context) (*ScanResult, error) {
@@ -75,9 +69,8 @@ func (s *GopsutilScanner) scan(ctx context.Context, stateFilter string) (*ScanRe
 		return nil, fmt.Errorf("scanning connections: %w", err)
 	}
 
-	s.mu.Lock()
-	s.procCache = make(map[int32]*cachedProc)
-	s.mu.Unlock()
+	// Local cache per scan — no shared state, no race possible
+	cache := make(map[int32]*cachedProc)
 
 	needsElevation := false
 	ports := make([]PortInfo, 0, len(connections))
@@ -104,7 +97,7 @@ func (s *GopsutilScanner) scan(ctx context.Context, stateFilter string) (*ScanRe
 		}
 
 		if conn.Pid > 0 {
-			proc := s.lookupProcess(conn.Pid)
+			proc := lookupProcess(cache, conn.Pid)
 			if proc != nil {
 				info.ProcessName = proc.name
 				info.User = proc.user
@@ -126,11 +119,8 @@ func (s *GopsutilScanner) scan(ctx context.Context, stateFilter string) (*ScanRe
 	}, nil
 }
 
-func (s *GopsutilScanner) lookupProcess(pid int32) *cachedProc {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if cached, ok := s.procCache[pid]; ok {
+func lookupProcess(cache map[int32]*cachedProc, pid int32) *cachedProc {
+	if cached, ok := cache[pid]; ok {
 		return cached
 	}
 
@@ -149,7 +139,7 @@ func (s *GopsutilScanner) lookupProcess(pid int32) *cachedProc {
 		commandLine: cmdline,
 	}
 
-	s.procCache[pid] = cached
+	cache[pid] = cached
 	return cached
 }
 

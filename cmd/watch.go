@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ashutosh/moor/internal/tui"
+	"github.com/MrHalder/moor/internal/config"
+	"github.com/MrHalder/moor/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,12 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		interval = 1 * time.Second
 	}
 
-	model := tui.New(interval)
+	var gracePeriod time.Duration
+	if cfg, err := config.Load(); err == nil {
+		gracePeriod = time.Duration(cfg.Settings.GracePeriodSecs) * time.Second
+	}
+
+	model := tui.New(interval, gracePeriod)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {

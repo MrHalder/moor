@@ -10,9 +10,6 @@ func TestNewScanner(t *testing.T) {
 	if s == nil {
 		t.Fatal("expected non-nil scanner")
 	}
-	if s.procCache == nil {
-		t.Fatal("expected non-nil procCache")
-	}
 }
 
 func TestListAll(t *testing.T) {

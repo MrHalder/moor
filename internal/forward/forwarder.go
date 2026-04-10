@@ -14,6 +14,7 @@ const (
 	maxConcurrentConns = 256
 	dialTimeout        = 10 * time.Second
 	idleTimeout        = 5 * time.Minute
+	firstByteTimeout   = 30 * time.Second
 )
 
 // Forwarder forwards TCP traffic from one local port to another.
@@ -26,6 +27,9 @@ type Forwarder struct {
 	wg          sync.WaitGroup
 	cancel      context.CancelFunc
 	sem         chan struct{}
+
+	mu      sync.Mutex
+	started bool
 }
 
 // Stats holds forwarding statistics.
@@ -47,14 +51,25 @@ func New(from, to uint16) *Forwarder {
 
 // Start begins listening on FromPort and forwarding to ToPort.
 // Blocks until the context is cancelled or an error occurs.
+// Must not be called more than once.
 func (f *Forwarder) Start(ctx context.Context) error {
+	f.mu.Lock()
+	if f.started {
+		f.mu.Unlock()
+		return fmt.Errorf("forwarder already started")
+	}
+	f.started = true
+
 	ctx, f.cancel = context.WithCancel(ctx)
 
 	var err error
 	f.listener, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", f.FromPort))
 	if err != nil {
+		f.started = false
+		f.mu.Unlock()
 		return fmt.Errorf("listen on port %d: %w", f.FromPort, err)
 	}
+	f.mu.Unlock()
 
 	// Close listener when context is done
 	go func() {
@@ -89,7 +104,12 @@ func (f *Forwarder) Start(ctx context.Context) error {
 		f.totalConns.Add(1)
 
 		go func() {
-			defer func() { <-f.sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					// Prevent a single connection panic from crashing the process
+				}
+				<-f.sem
+			}()
 			f.handleConn(ctx, conn)
 		}()
 	}
@@ -97,8 +117,12 @@ func (f *Forwarder) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the forwarder.
 func (f *Forwarder) Stop() {
-	if f.cancel != nil {
-		f.cancel()
+	f.mu.Lock()
+	cancel := f.cancel
+	f.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
 	f.wg.Wait()
 }
@@ -124,9 +148,17 @@ func (f *Forwarder) handleConn(ctx context.Context, src net.Conn) {
 	}
 	defer dst.Close()
 
+	// Set initial deadline to prevent slowloris (connections that never send data)
+	src.SetDeadline(time.Now().Add(firstByteTimeout))
+	dst.SetDeadline(time.Now().Add(firstByteTimeout))
+
+	// Per-connection context to clean up the cancel-watcher goroutine
+	connCtx, connCancel := context.WithCancel(ctx)
+	defer connCancel()
+
 	// Close both connections when context is cancelled so io.Copy unblocks
 	go func() {
-		<-ctx.Done()
+		<-connCtx.Done()
 		src.Close()
 		dst.Close()
 	}()
@@ -135,8 +167,10 @@ func (f *Forwarder) handleConn(ctx context.Context, src net.Conn) {
 
 	// src -> dst
 	go func() {
+		// Clear deadline once data starts flowing
+		src.SetDeadline(time.Time{})
+		dst.SetDeadline(time.Time{})
 		io.Copy(dst, src)
-		// Close write-half to signal the other direction
 		if tc, ok := dst.(*net.TCPConn); ok {
 			tc.CloseWrite()
 		}
@@ -159,6 +193,6 @@ func (f *Forwarder) handleConn(ctx context.Context, src net.Conn) {
 		src.SetDeadline(time.Now().Add(idleTimeout))
 		dst.SetDeadline(time.Now().Add(idleTimeout))
 		<-done
-	case <-ctx.Done():
+	case <-connCtx.Done():
 	}
 }

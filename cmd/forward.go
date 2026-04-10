@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ashutosh/moor/internal/forward"
+	"github.com/MrHalder/moor/internal/forward"
 	"github.com/spf13/cobra"
 )
 

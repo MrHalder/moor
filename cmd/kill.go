@@ -8,8 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ashutosh/moor/internal/process"
-	"github.com/ashutosh/moor/internal/scanner"
+	"time"
+
+	"github.com/MrHalder/moor/internal/config"
+	"github.com/MrHalder/moor/internal/formatter"
+	"github.com/MrHalder/moor/internal/process"
+	"github.com/MrHalder/moor/internal/scanner"
 	"github.com/spf13/cobra"
 )
 
@@ -76,9 +80,12 @@ func runKill(cmd *cobra.Command, args []string) error {
 	}
 
 	mgr := process.NewManager()
+	if cfg, err := config.Load(); err == nil {
+		mgr.GracePeriod = time.Duration(cfg.Settings.GracePeriodSecs) * time.Second
+	}
 
 	for _, target := range unique {
-		name := target.ProcessName
+		name := formatter.SanitizeDisplay(target.ProcessName)
 		if name == "" {
 			name = "unknown"
 		}

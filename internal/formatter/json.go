@@ -3,7 +3,7 @@ package formatter
 import (
 	"encoding/json"
 
-	"github.com/ashutosh/moor/internal/scanner"
+	"github.com/MrHalder/moor/internal/scanner"
 )
 
 // FormatJSON renders port info as indented JSON.

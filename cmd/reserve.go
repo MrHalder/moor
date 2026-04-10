@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/ashutosh/moor/internal/config"
-	"github.com/ashutosh/moor/internal/envfile"
+	"github.com/MrHalder/moor/internal/config"
+	"github.com/MrHalder/moor/internal/envfile"
 	"github.com/spf13/cobra"
 )
 

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ashutosh/moor/internal/config"
-	"github.com/ashutosh/moor/internal/scanner"
+	"github.com/MrHalder/moor/internal/config"
+	"github.com/MrHalder/moor/internal/scanner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )

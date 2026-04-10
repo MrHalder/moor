@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/ashutosh/moor/internal/config"
+	"github.com/MrHalder/moor/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

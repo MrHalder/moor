@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ashutosh/moor/internal/process"
-	"github.com/ashutosh/moor/internal/scanner"
+	"github.com/MrHalder/moor/internal/process"
+	"github.com/MrHalder/moor/internal/scanner"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -148,12 +148,13 @@ type Model struct {
 	actionCursor int
 
 	// Kill confirmation
-	killTarget *scanner.PortInfo
-	killForce  bool
+	killTarget  *scanner.PortInfo
+	killForce   bool
+	gracePeriod time.Duration
 }
 
 // New creates a new TUI Model.
-func New(refreshInterval time.Duration) Model {
+func New(refreshInterval, gracePeriod time.Duration) Model {
 	ti := textinput.New()
 	ti.Placeholder = "type to filter..."
 	ti.CharLimit = 50
@@ -161,9 +162,14 @@ func New(refreshInterval time.Duration) Model {
 	h := help.New()
 	h.ShowAll = false
 
+	mgr := process.NewManager()
+	if gracePeriod > 0 {
+		mgr.GracePeriod = gracePeriod
+	}
+
 	return Model{
 		scanner:         scanner.NewScanner(),
-		procMgr:         process.NewManager(),
+		procMgr:         mgr,
 		theme:           DefaultTheme(),
 		keys:            DefaultKeyMap(),
 		help:            h,
@@ -171,6 +177,7 @@ func New(refreshInterval time.Duration) Model {
 		view:            viewTable,
 		sortCol:         sortByPort,
 		refreshInterval: refreshInterval,
+		gracePeriod:     gracePeriod,
 	}
 }
 
@@ -205,7 +212,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case killResultMsg:
 		if msg.success {
-			m.statusMsg = fmt.Sprintf("Killed '%s' (PID %d) on port %d", msg.name, msg.pid, msg.port)
+			m.statusMsg = fmt.Sprintf("Killed '%s' (PID %d) on port %d", sanitizeDisplay(msg.name), msg.pid, msg.port)
 		} else {
 			m.statusMsg = fmt.Sprintf("Failed to kill PID %d: %v", msg.pid, msg.err)
 		}
@@ -415,8 +422,12 @@ func (m Model) handleConfirmKillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.killTarget != nil && m.killTarget.PID > 0 {
 			target := *m.killTarget
 			force := m.killForce
+			gracePeriod := m.gracePeriod
 			return m, func() tea.Msg {
 				mgr := process.NewManager()
+				if gracePeriod > 0 {
+					mgr.GracePeriod = gracePeriod
+				}
 				err := mgr.Kill(context.Background(), target.PID, force)
 				return killResultMsg{
 					port:    target.LocalPort,
@@ -580,11 +591,11 @@ func (m Model) renderTable() string {
 		p := m.filteredPorts[i]
 		row := fmt.Sprintf("%-6s  %-20s  %-6d  %-8s  %-24s  %-12s  %-12s",
 			p.Protocol,
-			truncate(p.LocalAddr, 20),
+			truncate(sanitizeDisplay(p.LocalAddr), 20),
 			p.LocalPort,
 			pidStr(p.PID),
-			truncate(p.ProcessName, 24),
-			truncate(p.User, 12),
+			truncate(sanitizeDisplay(p.ProcessName), 24),
+			truncate(sanitizeDisplay(p.User), 12),
 			p.State,
 		)
 
@@ -649,13 +660,13 @@ func (m Model) renderActions() string {
 	var sb strings.Builder
 
 	// Port header
-	name := p.ProcessName
+	name := sanitizeDisplay(p.ProcessName)
 	if name == "" {
 		name = "unknown"
 	}
 
 	sb.WriteString("\n")
-	header := fmt.Sprintf("  %s:%d  (%s, PID %s)", p.LocalAddr, p.LocalPort, name, pidStr(p.PID))
+	header := fmt.Sprintf("  %s:%d  (%s, PID %s)", sanitizeDisplay(p.LocalAddr), p.LocalPort, name, pidStr(p.PID))
 	sb.WriteString(m.theme.Title.Render(header))
 	sb.WriteString("\n\n")
 	sb.WriteString(m.theme.Subtitle.Render("  Select an action:"))
@@ -692,7 +703,7 @@ func (m Model) renderKillConfirm() string {
 		method = "SIGKILL (force)"
 	}
 
-	name := m.killTarget.ProcessName
+	name := sanitizeDisplay(m.killTarget.ProcessName)
 	if name == "" {
 		name = "unknown"
 	}
@@ -785,7 +796,9 @@ func truncate(s string, maxLen int) string {
 
 func sanitizeDisplay(s string) string {
 	return strings.Map(func(r rune) rune {
-		if r < 32 || r == 127 {
+		// Strip C0 control characters, DEL, and C1 control characters
+		// C1 (U+0080–U+009F) includes OSC, CSI, DCS which can manipulate terminals
+		if r < 32 || r == 127 || (r >= 0x80 && r <= 0x9F) {
 			return -1
 		}
 		return r

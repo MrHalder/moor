@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ashutosh/moor/internal/scanner"
+	"github.com/MrHalder/moor/internal/scanner"
 	"github.com/charmbracelet/lipgloss"
 )
 

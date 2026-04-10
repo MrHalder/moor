@@ -49,6 +49,9 @@ func (m *DefaultManager) Kill(ctx context.Context, pid int32, force bool) error 
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d: must be positive", pid)
 	}
+	if pid < 10 {
+		return fmt.Errorf("refusing to signal system process PID %d", pid)
+	}
 
 	if !m.IsAlive(pid) {
 		return fmt.Errorf("process %d is not running", pid)

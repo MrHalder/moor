@@ -21,16 +21,25 @@ type ContainerPort struct {
 }
 
 // Client queries Docker for container port mappings.
-type Client struct{}
+type Client struct {
+	dockerPath string
+}
 
-// NewClient creates a Docker client.
+// NewClient creates a Docker client. Resolves the docker binary path once at creation.
 func NewClient() *Client {
-	return &Client{}
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		return &Client{}
+	}
+	return &Client{dockerPath: path}
 }
 
 // Available returns true if Docker CLI is accessible and the daemon is running.
 func (c *Client) Available(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "docker", "info", "--format", "{{.ID}}")
+	if c.dockerPath == "" {
+		return false
+	}
+	cmd := exec.CommandContext(ctx, c.dockerPath, "info", "--format", "{{.ID}}")
 	return cmd.Run() == nil
 }
 
@@ -45,7 +54,11 @@ type dockerContainer struct {
 
 // ListPortMappings returns all container port mappings.
 func (c *Client) ListPortMappings(ctx context.Context) ([]ContainerPort, error) {
-	cmd := exec.CommandContext(ctx, "docker", "ps", "--format", "{{json .}}")
+	if c.dockerPath == "" {
+		return nil, fmt.Errorf("docker not found in PATH")
+	}
+
+	cmd := exec.CommandContext(ctx, c.dockerPath, "ps", "--format", "{{json .}}")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker ps: %w", err)

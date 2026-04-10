@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ashutosh/moor/internal/formatter"
-	"github.com/ashutosh/moor/internal/scanner"
+	"github.com/MrHalder/moor/internal/formatter"
+	"github.com/MrHalder/moor/internal/scanner"
 	"github.com/spf13/cobra"
 )
 
