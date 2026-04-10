@@ -4,13 +4,33 @@
 
 A fast, interactive CLI + TUI tool for managing network ports, killing stale processes, reserving ports for projects, and more. Written in Go.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/MrHalder/moor.svg)](https://pkg.go.dev/github.com/MrHalder/moor)
+
 ## Install
+
+### Go (recommended)
+
+```bash
+go install github.com/MrHalder/moor@latest
+```
+
+Requires Go 1.25.8+. Binary lands in `$GOPATH/bin` (usually `~/go/bin`).
+
+### From release
+
+```bash
+# macOS (Apple Silicon)
+curl -L https://github.com/MrHalder/moor/releases/latest/download/moor -o moor
+chmod +x moor
+sudo mv moor /usr/local/bin/
+```
+
+### From source
 
 ```bash
 git clone https://github.com/MrHalder/moor.git
 cd moor
-go build -o moor .
-sudo cp moor /usr/local/bin/moor
+make install
 ```
 
 ## Usage
