@@ -42,6 +42,9 @@ moor list --json        # JSON output
 moor find <port>        # what's using this port?
 moor kill <port>        # kill process on a port
 moor kill <port> -f     # force kill (SIGKILL)
+moor pkill              # list all processes, pick which to kill
+moor pkill node         # find & kill processes matching "node"
+moor pkill -F server.js # match against full command line
 moor watch              # real-time TUI dashboard
 moor reserve <port> <project>   # reserve a port
 moor reservations       # list all reservations
@@ -64,7 +67,8 @@ Run `moor` or `moor list` in a terminal for the interactive experience:
 ## Features
 
 - **List & Find** — See all listening ports with process name, PID, user
-- **Kill** — Graceful kill (SIGTERM -> SIGKILL) or force kill
+- **Kill** — Graceful kill (SIGTERM -> SIGKILL) or force kill by port
+- **Pkill** — Find and kill processes by name with interactive selection
 - **Interactive TUI** — Full-screen dashboard with auto-refresh, filtering, sorting
 - **Port Reservations** — Assign ports to projects, detect conflicts
 - **Doctor** — Health check for port conflicts, stale processes, zombies

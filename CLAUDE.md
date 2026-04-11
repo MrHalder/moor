@@ -15,7 +15,7 @@ make install      # copies to /usr/local/bin/moor
 
 - `cmd/` — Cobra CLI commands
 - `internal/scanner/` — Port scanning via gopsutil
-- `internal/process/` — Process kill/signal management
+- `internal/process/` — Process kill/signal management + system-wide process listing
 - `internal/formatter/` — CLI table + JSON output
 - `internal/config/` — YAML config in ~/.config/moor/
 - `internal/tui/` — Bubble Tea interactive dashboard
